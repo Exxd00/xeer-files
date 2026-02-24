@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Header } from '@/components/layout/Header'
 import { Footer } from '@/components/layout/Footer'
 import { FileUpload } from '@/components/tools/FileUpload'
+import { ToolOptions } from '@/components/tools/ToolOptions'
 import { getToolById, tools } from '@/lib/tools'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -12,10 +13,8 @@ import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { toast } from 'sonner'
 import {
-  ArrowLeft,
   Play,
   Clock,
-  FileText,
   Info,
   CheckCircle2,
   Loader2
@@ -32,6 +31,7 @@ export default function ToolPage({ params }: ToolPageProps) {
   const tool = getToolById(toolId)
 
   const [files, setFiles] = useState<File[]>([])
+  const [options, setOptions] = useState<Record<string, unknown>>({})
   const [uploading, setUploading] = useState(false)
   const [processing, setProcessing] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
@@ -59,10 +59,38 @@ export default function ToolPage({ params }: ToolPageProps) {
 
   const Icon = tool.icon
 
+  // Parse page input like "1,3,5-10" to array of page numbers
+  const parsePages = (input: string): number[] => {
+    if (!input.trim()) return []
+    const pages: number[] = []
+    const parts = input.split(',').map(p => p.trim())
+    for (const part of parts) {
+      if (part.includes('-')) {
+        const [start, end] = part.split('-').map(n => parseInt(n.trim()))
+        if (!isNaN(start) && !isNaN(end)) {
+          for (let i = start; i <= end; i++) {
+            pages.push(i)
+          }
+        }
+      } else {
+        const num = parseInt(part)
+        if (!isNaN(num)) pages.push(num)
+      }
+    }
+    return [...new Set(pages)].sort((a, b) => a - b)
+  }
+
   const handleProcess = async () => {
     if (files.length === 0 && tool.maxFiles > 0) {
       toast.error('يرجى اختيار ملف واحد على الأقل')
       return
+    }
+
+    // Prepare options with parsed pages if needed
+    const processOptions = { ...options }
+    if (processOptions.pagesInput) {
+      processOptions.pages = parsePages(processOptions.pagesInput as string)
+      delete processOptions.pagesInput
     }
 
     try {
@@ -75,7 +103,7 @@ export default function ToolPage({ params }: ToolPageProps) {
         formData.append(`file_${index}`, file)
       })
       formData.append('toolId', tool.id)
-      formData.append('options', JSON.stringify({}))
+      formData.append('options', JSON.stringify(processOptions))
 
       // Simulate upload progress
       const uploadInterval = setInterval(() => {
@@ -129,7 +157,7 @@ export default function ToolPage({ params }: ToolPageProps) {
             toolName: tool.name,
             error: job.error_message || 'حدث خطأ غير متوقع'
           }))
-          router.push('/error')
+          router.push('/error-page')
         } else {
           setProcessProgress(job.progress || 0)
           setTimeout(pollJob, 1000)
@@ -152,6 +180,9 @@ export default function ToolPage({ params }: ToolPageProps) {
   const relatedTools = tools
     .filter(t => t.category === tool.category && t.id !== tool.id)
     .slice(0, 3)
+
+  // Check if this tool needs file upload
+  const needsFileUpload = tool.maxFiles > 0
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -191,21 +222,30 @@ export default function ToolPage({ params }: ToolPageProps) {
                 </div>
               </div>
 
-              {/* File Upload */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">اختر الملفات</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <FileUpload
-                    tool={tool}
-                    files={files}
-                    setFiles={setFiles}
-                    uploading={uploading}
-                    uploadProgress={uploadProgress}
-                  />
-                </CardContent>
-              </Card>
+              {/* File Upload - Only show if tool needs files */}
+              {needsFileUpload && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">اختر الملفات</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <FileUpload
+                      tool={tool}
+                      files={files}
+                      setFiles={setFiles}
+                      uploading={uploading}
+                      uploadProgress={uploadProgress}
+                    />
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Tool Options */}
+              <ToolOptions
+                toolId={tool.id}
+                options={options}
+                onChange={setOptions}
+              />
 
               {/* Processing Progress */}
               {processing && (
@@ -237,7 +277,7 @@ export default function ToolPage({ params }: ToolPageProps) {
                   size="lg"
                   className="w-full py-6 text-lg"
                   onClick={handleProcess}
-                  disabled={uploading || (files.length === 0 && tool.maxFiles > 0)}
+                  disabled={uploading || (needsFileUpload && files.length === 0)}
                 >
                   {uploading ? (
                     <>
@@ -265,14 +305,18 @@ export default function ToolPage({ params }: ToolPageProps) {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">الحد الأقصى للملفات</span>
-                    <Badge variant="secondary">{tool.maxFiles} ملفات</Badge>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">الحجم الأقصى</span>
-                    <Badge variant="secondary">{tool.maxFileSize} ميجابايت</Badge>
-                  </div>
+                  {tool.maxFiles > 0 && (
+                    <>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">الحد الأقصى للملفات</span>
+                        <Badge variant="secondary">{tool.maxFiles} ملفات</Badge>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">الحجم الأقصى</span>
+                        <Badge variant="secondary">{tool.maxFileSize} ميجابايت</Badge>
+                      </div>
+                    </>
+                  )}
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-muted-foreground">وقت المعالجة</span>
                     <Badge variant="secondary" className="flex items-center gap-1">

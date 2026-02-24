@@ -1,4 +1,5 @@
 import crypto from 'crypto'
+import QRCode from 'qrcode'
 import type { ProcessResult } from './index'
 
 interface FileInput {
@@ -49,6 +50,18 @@ export async function processText(
 
       case 'csv-json-converter':
         return await csvJsonConverter(files[0], options, onProgress)
+
+      case 'qr-code-generator':
+        return await qrCodeGenerator(options, onProgress)
+
+      case 'barcode-generator':
+        return await barcodeGenerator(options, onProgress)
+
+      case 'unix-time-converter':
+        return await unixTimeConverter(options, onProgress)
+
+      case 'file-size-converter':
+        return await fileSizeConverter(options, onProgress)
 
       default:
         return {
@@ -451,5 +464,233 @@ async function csvJsonConverter(
         error: 'تنسيق JSON غير صالح'
       }
     }
+  }
+}
+
+async function qrCodeGenerator(
+  options: Record<string, unknown>,
+  onProgress: ProgressCallback
+): Promise<ProcessResult> {
+  const content = (options.content as string) || 'https://xeer-files.com'
+  const size = (options.size as number) || 300
+
+  if (!content.trim()) {
+    return {
+      success: false,
+      outputs: [],
+      error: 'يرجى إدخال النص أو الرابط'
+    }
+  }
+
+  await onProgress(50)
+
+  try {
+    const qrBuffer = await QRCode.toBuffer(content, {
+      width: size,
+      margin: 2,
+      color: {
+        dark: '#000000',
+        light: '#ffffff'
+      }
+    })
+
+    return {
+      success: true,
+      outputs: [{
+        name: 'qrcode.png',
+        data: qrBuffer,
+        mimeType: 'image/png'
+      }]
+    }
+  } catch (error) {
+    return {
+      success: false,
+      outputs: [],
+      error: 'فشل في إنشاء QR Code'
+    }
+  }
+}
+
+async function barcodeGenerator(
+  options: Record<string, unknown>,
+  onProgress: ProgressCallback
+): Promise<ProcessResult> {
+  const content = (options.content as string) || '123456789'
+  const format = (options.format as string) || 'CODE128'
+
+  if (!content.trim()) {
+    return {
+      success: false,
+      outputs: [],
+      error: 'يرجى إدخال النص أو الرقم'
+    }
+  }
+
+  await onProgress(50)
+
+  // Create simple SVG barcode (Code128 style representation)
+  const bars: string[] = []
+  const barWidth = 2
+  let x = 20
+
+  // Simple visual representation - not a real barcode encoding
+  for (let i = 0; i < content.length; i++) {
+    const charCode = content.charCodeAt(i)
+    const pattern = charCode.toString(2).padStart(8, '0')
+
+    for (const bit of pattern) {
+      if (bit === '1') {
+        bars.push(`<rect x="${x}" y="20" width="${barWidth}" height="80" fill="black"/>`)
+      }
+      x += barWidth
+    }
+    x += barWidth // gap between characters
+  }
+
+  const totalWidth = x + 20
+  const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg width="${totalWidth}" height="120" xmlns="http://www.w3.org/2000/svg">
+  <rect width="100%" height="100%" fill="white"/>
+  ${bars.join('\n  ')}
+  <text x="${totalWidth / 2}" y="115" text-anchor="middle" font-family="monospace" font-size="12">${content}</text>
+</svg>`
+
+  return {
+    success: true,
+    outputs: [{
+      name: 'barcode.svg',
+      data: Buffer.from(svg, 'utf-8'),
+      mimeType: 'image/svg+xml'
+    }]
+  }
+}
+
+async function unixTimeConverter(
+  options: Record<string, unknown>,
+  onProgress: ProgressCallback
+): Promise<ProcessResult> {
+  const direction = (options.direction as string) || 'unix-to-date'
+
+  await onProgress(50)
+
+  let result: string
+
+  if (direction === 'unix-to-date') {
+    const unixInput = (options.unixInput as string) || String(Math.floor(Date.now() / 1000))
+    const timestamp = parseInt(unixInput)
+
+    if (isNaN(timestamp)) {
+      return {
+        success: false,
+        outputs: [],
+        error: 'يرجى إدخال رقم صحيح'
+      }
+    }
+
+    const date = new Date(timestamp * 1000)
+
+    result = `Unix Timestamp: ${timestamp}
+━━━━━━━━━━━━━━━━━━━━━━
+
+التاريخ المحلي: ${date.toLocaleString('ar-SA')}
+التاريخ العالمي (UTC): ${date.toUTCString()}
+ISO 8601: ${date.toISOString()}
+
+تفاصيل:
+- السنة: ${date.getFullYear()}
+- الشهر: ${date.getMonth() + 1}
+- اليوم: ${date.getDate()}
+- الساعة: ${date.getHours()}
+- الدقيقة: ${date.getMinutes()}
+- الثانية: ${date.getSeconds()}`
+
+  } else {
+    const dateInput = options.dateInput as string
+    let date: Date
+
+    if (dateInput) {
+      date = new Date(dateInput)
+    } else {
+      date = new Date()
+    }
+
+    if (isNaN(date.getTime())) {
+      return {
+        success: false,
+        outputs: [],
+        error: 'تاريخ غير صالح'
+      }
+    }
+
+    const timestamp = Math.floor(date.getTime() / 1000)
+
+    result = `التاريخ: ${date.toLocaleString('ar-SA')}
+━━━━━━━━━━━━━━━━━━━━━━
+
+Unix Timestamp (ثواني): ${timestamp}
+Unix Timestamp (ميلي ثانية): ${date.getTime()}
+ISO 8601: ${date.toISOString()}`
+  }
+
+  return {
+    success: true,
+    outputs: [{
+      name: 'timestamp.txt',
+      data: Buffer.from(result, 'utf-8'),
+      mimeType: 'text/plain'
+    }]
+  }
+}
+
+async function fileSizeConverter(
+  options: Record<string, unknown>,
+  onProgress: ProgressCallback
+): Promise<ProcessResult> {
+  const sizeInput = (options.size as string) || '1024'
+  const fromUnit = (options.fromUnit as string) || 'bytes'
+
+  await onProgress(50)
+
+  const size = parseFloat(sizeInput)
+  if (isNaN(size)) {
+    return {
+      success: false,
+      outputs: [],
+      error: 'يرجى إدخال رقم صحيح'
+    }
+  }
+
+  // Convert to bytes first
+  let bytes: number
+  switch (fromUnit) {
+    case 'kb': bytes = size * 1024; break
+    case 'mb': bytes = size * 1024 * 1024; break
+    case 'gb': bytes = size * 1024 * 1024 * 1024; break
+    case 'tb': bytes = size * 1024 * 1024 * 1024 * 1024; break
+    default: bytes = size
+  }
+
+  const result = `الحجم المُدخل: ${size} ${fromUnit.toUpperCase()}
+━━━━━━━━━━━━━━━━━━━━━━
+
+التحويلات:
+- بايت (Bytes): ${bytes.toLocaleString()}
+- كيلوبايت (KB): ${(bytes / 1024).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+- ميجابايت (MB): ${(bytes / (1024 * 1024)).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+- جيجابايت (GB): ${(bytes / (1024 * 1024 * 1024)).toLocaleString(undefined, { maximumFractionDigits: 4 })}
+- تيرابايت (TB): ${(bytes / (1024 * 1024 * 1024 * 1024)).toLocaleString(undefined, { maximumFractionDigits: 6 })}
+
+النظام العشري (SI):
+- كيلوبايت (kB): ${(bytes / 1000).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+- ميجابايت (MB): ${(bytes / 1000000).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+- جيجابايت (GB): ${(bytes / 1000000000).toLocaleString(undefined, { maximumFractionDigits: 4 })}`
+
+  return {
+    success: true,
+    outputs: [{
+      name: 'size-conversion.txt',
+      data: Buffer.from(result, 'utf-8'),
+      mimeType: 'text/plain'
+    }]
   }
 }

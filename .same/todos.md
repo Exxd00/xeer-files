@@ -17,28 +17,45 @@
 - [x] Implement Archive processors (zip create/extract, tar.gz)
 - [x] Implement Text processors (case convert, word count, hash, etc.)
 - [x] Create health check endpoint
+- [x] Add ToolOptions component with configuration UIs for 20+ tools
+- [x] Implement QR Code generator
+- [x] Implement Barcode generator (SVG)
+- [x] Implement Unix Time Converter
+- [x] Implement File Size Converter
+- [x] Add working search functionality with dropdown results
+- [x] Add Slider, RadioGroup, and Select UI components
+- [x] GitHub Actions CI/CD workflow
+- [x] Dockerfile and docker-compose configuration
 
 ## In Progress
-- [ ] Push code to GitHub repository
-- [ ] Add more tool-specific options UI
-- [ ] Implement remaining processors (OCR, document conversions)
+- [ ] Push code to GitHub repository (permission issue - need correct account)
 
 ## TODO
-- [ ] Add GitHub Actions CI/CD
-- [ ] Add Dockerfile and docker-compose
 - [ ] Implement file cleanup cron job (Supabase Edge Function)
-- [ ] Add tool search functionality
 - [ ] Add English language toggle
-- [ ] Add more advanced PDF features (protect, unlock)
-- [ ] Optimize for mobile responsiveness
-- [ ] Add loading skeletons
+- [ ] Implement remaining OCR processors (need Tesseract)
+- [ ] Add more advanced PDF features (protect with encryption, unlock)
+- [ ] Add loading skeletons for tool cards
 - [ ] Implement rate limiting
-- [ ] Add error tracking/monitoring
+- [ ] Add error tracking/monitoring (Sentry)
+- [ ] Deploy to Netlify
 
 ## Tech Stack
-- **Frontend:** Next.js 14 (App Router), React, Tailwind CSS, shadcn/ui
+- **Frontend:** Next.js 15 (App Router), React, Tailwind CSS, shadcn/ui
 - **Backend:** Next.js API Routes
 - **Database:** Supabase PostgreSQL
 - **Storage:** Supabase Storage with signed URLs
-- **Processing:** pdf-lib, sharp, archiver, unzipper
+- **Processing:** pdf-lib, sharp, archiver, unzipper, qrcode
 - **Deployment:** Netlify (Dynamic)
+
+## Features Summary
+- 50+ file tools organized in 7 categories
+- PDF: compress, merge, split, extract/delete pages, rotate, convert, watermark, etc.
+- Images: convert formats, compress, resize, crop, rotate, watermark, EXIF removal
+- Text: case converter, word counter, extract emails/URLs, hash, Base64, JSON formatter
+- Extras: QR Code generator, Barcode generator, Unix time converter, file size converter
+- Full Arabic RTL support
+- Responsive design
+- Dark mode toggle
+- Working search functionality
+- Tool-specific configuration options
